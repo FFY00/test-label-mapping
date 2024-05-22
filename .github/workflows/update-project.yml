@@ -1,0 +1,56 @@
+name: update-project
+
+on:
+  issues:
+    types:
+      - labeled
+
+jobs:
+  update-issue-column:
+    runs-on: ubuntu-latest
+    permissions:
+      repository-projects: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get column ID
+        id: get-column
+        run: |
+          value=$(jq -r .labelToColumnId.\"${{ github.event.label.name }}\" update-project.json)
+          echo "id=$value" >>$GITHUB_OUTPUT
+          echo "Label: ${{ github.event.label.name }}"
+          echo "Column id: $value"
+      - name: Add issue to project
+        if: ${{ steps.get-column.outputs.id != 'null' }}
+        id: add-to-project
+        uses: actions/add-to-project@v1.0.1
+        with:
+          project-url: https://github.com/users/FFY00/projects/2
+          github-token: ${{ secrets.GHPROJECT_TOKEN }}
+      - name: Move issue to column
+        if: ${{ steps.get-column.outputs.id != 'null' }}
+        uses: octokit/graphql-action@v2.x
+        with:
+          query: |
+            mutation($project: ID!, $item: ID!, $field: ID!, $column: String!) {
+              updateProjectV2ItemFieldValue(
+                input: {
+                  projectId: $project
+                  itemId: $item
+                  fieldId: $field
+                  value: {
+                    singleSelectOptionId: $column
+                  }
+                }
+              ) {
+                projectV2Item {
+                    id
+                }
+              }
+            }
+          variables: |
+            project: "PVT_kwHOALLRC84Ah-ff"
+            item: ${{ steps.add-to-project.outputs.itemId }}
+            field: "PVTSSF_lAHOALLRC84Ah-ffzgakPEw"
+            column: ${{ steps.get-column.outputs.id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHPROJECT_TOKEN }}
